@@ -1,7 +1,7 @@
 
 import { MangaSearchResult, MangaVolume } from '../types';
 
-const PROXY_URL = 'https://corsproxy.io/?';
+const PROXY_URL = 'https://cors-anywhere-proxy.workers.dev/';
 const API_BASE_URL = `${PROXY_URL}https://api.mangadex.org`;
 const COVER_BASE_URL = 'https://uploads.mangadex.org';
 
