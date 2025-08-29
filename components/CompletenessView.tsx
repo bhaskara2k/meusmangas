@@ -31,6 +31,7 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
   const { user } = useUser();
   const [selectedMangaId, setSelectedMangaId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const [apiVolumes, setApiVolumes] = useState<string[]>([]);
@@ -95,8 +96,9 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
   };
   
   const handleToggleTrackedVolume = async (volume: string) => {
-    if (!selectedMangaId || !user) return;
+    if (!selectedMangaId || !user || isUpdating) return;
     setError(null);
+    setIsUpdating(true);
 
     const originalTracked = trackedVolumes[selectedMangaId] || [];
     const currentTracked = new Set(originalTracked);
@@ -120,17 +122,23 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
       console.error("Failed to update tracked volumes:", err);
       setError("Não foi possível salvar a alteração. Tente novamente.");
       setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: originalTracked }));
+    } finally {
+        setIsUpdating(false);
     }
   };
 
   const handleHideVolume = async (volumeToHide: string) => {
-    if (!selectedMangaId || !user) return;
+    if (!selectedMangaId || !user || isUpdating) return;
     setError(null);
+    setIsUpdating(true);
 
     const originalHidden = hiddenVolumes[selectedMangaId] || [];
     const originalTracked = trackedVolumes[selectedMangaId] || [];
 
-    if (originalHidden.includes(volumeToHide)) return;
+    if (originalHidden.includes(volumeToHide)) {
+        setIsUpdating(false);
+        return;
+    };
 
     const newHidden = [...originalHidden, volumeToHide];
     
@@ -164,15 +172,19 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
       if(wasTracked) {
         setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: originalTracked }));
       }
+    } finally {
+        setIsUpdating(false);
     }
   };
 
   const handleRestoreHiddenVolumes = async () => {
-    if (!selectedMangaId || !user) return;
+    if (!selectedMangaId || !user || isUpdating) return;
     setError(null);
     
     const originalHidden = hiddenVolumes[selectedMangaId] || [];
     if (originalHidden.length === 0) return;
+    
+    setIsUpdating(true);
 
     setHiddenVolumes(prev => {
       const newHidden = { ...prev };
@@ -191,6 +203,8 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
       console.error("Failed to restore hidden volumes:", err);
       setError("Não foi possível restaurar os volumes. Tente novamente.");
       setHiddenVolumes(prev => ({ ...prev, [selectedMangaId]: originalHidden }));
+    } finally {
+        setIsUpdating(false);
     }
   };
 
@@ -212,7 +226,7 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
   const renderResult = () => {
     if (isLoading) return <LoadingSpinner />;
     if (!selectedMangaId || (apiVolumes.length === 0 && !isLoading)) {
-       if (error) return <p className="text-center text-red-500 dark:text-red-400 mt-6">{error}</p>;
+       if (error && !isLoading) return <p className="text-center text-red-500 dark:text-red-400 mt-6">{error}</p>;
        return null;
     }
 
@@ -253,7 +267,11 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
            <div className="flex justify-between items-center mb-2">
             <h4 className="text-lg font-semibold text-foreground">Gerenciar Volumes Rastreáveis</h4>
             {hasHiddenVolumes && (
-              <button onClick={handleRestoreHiddenVolumes} className="text-sm text-primary hover:text-primary/80 transition-colors">
+              <button 
+                onClick={handleRestoreHiddenVolumes} 
+                className="text-sm text-primary hover:text-primary/80 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                disabled={isUpdating}
+              >
                 Restaurar Ocultos ({hiddenVolumes[selectedMangaId]?.length})
               </button>
             )}
@@ -271,12 +289,13 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
               return (
                 <div key={vol} className="relative group">
                   <button 
-                    disabled={isOwned}
+                    disabled={isOwned || isUpdating}
                     onClick={() => handleToggleTrackedVolume(vol)}
                     className={`
                       w-20 text-center px-3 py-2 rounded-md text-sm font-semibold transition-colors duration-150
                       focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-ring
                       ${bgColor}
+                      ${isUpdating ? 'cursor-wait' : ''}
                     `}
                   >
                     <div className="flex items-center justify-center gap-2">
@@ -290,7 +309,8 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
                   {!isOwned && (
                     <button
                       onClick={() => handleHideVolume(vol)}
-                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-400"
+                      disabled={isUpdating}
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-400 disabled:opacity-50 disabled:cursor-wait"
                       aria-label={`Ocultar volume ${vol}`}
                     >
                       <XIcon className="w-3 h-3" />
