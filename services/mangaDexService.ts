@@ -63,11 +63,12 @@ export const searchManga = async (query: string): Promise<MangaSearchResult[]> =
     return data.data.map(manga => {
       const coverArt = manga.relationships.find(rel => rel.type === 'cover_art');
       const fileName = coverArt?.attributes?.fileName;
+      const coverUrl = fileName ? `${COVER_BASE_URL}/covers/${manga.id}/${fileName}.256.jpg` : 'https://via.placeholder.com/256x362.png?text=No+Cover';
 
       return {
         id: manga.id,
         title: getMangaTitle(manga),
-        mainCoverUrl: fileName ? `${COVER_BASE_URL}/covers/${manga.id}/${fileName}.256.jpg` : 'https://via.placeholder.com/256x362.png?text=No+Cover'
+        mainCoverUrl: coverUrl.startsWith('https://via.placeholder.com') ? coverUrl : `${PROXY_URL}${coverUrl}`
       };
     });
 
@@ -90,11 +91,12 @@ export const getPopularManga = async (): Promise<MangaSearchResult[]> => {
     return data.data.map(manga => {
       const coverArt = manga.relationships.find(rel => rel.type === 'cover_art');
       const fileName = coverArt?.attributes?.fileName;
+      const coverUrl = fileName ? `${COVER_BASE_URL}/covers/${manga.id}/${fileName}.256.jpg` : 'https://via.placeholder.com/256x362.png?text=No+Cover';
 
       return {
         id: manga.id,
         title: getMangaTitle(manga),
-        mainCoverUrl: fileName ? `${COVER_BASE_URL}/covers/${manga.id}/${fileName}.256.jpg` : 'https://via.placeholder.com/256x362.png?text=No+Cover'
+        mainCoverUrl: coverUrl.startsWith('https://via.placeholder.com') ? coverUrl : `${PROXY_URL}${coverUrl}`
       };
     });
 
@@ -123,7 +125,7 @@ export const getMangaVolumesWithCovers = async (mangaId: string): Promise<MangaV
                 if (!volumeMap.has(volumeKey)) {
                     volumeMap.set(volumeKey, {
                         volume: volumeKey,
-                        coverUrl: `${COVER_BASE_URL}/covers/${mangaId}/${cover.attributes.fileName}.512.jpg`,
+                        coverUrl: `${PROXY_URL}${COVER_BASE_URL}/covers/${mangaId}/${cover.attributes.fileName}.512.jpg`,
                     });
                 }
             }
