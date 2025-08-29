@@ -73,11 +73,14 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
       setOwnedVolumes(ownedVolumeNumbers);
 
       if (!trackedVolumes[mangaId] && user) {
-        const newTrackedVolumes = { ...trackedVolumes, [mangaId]: [...allApiVolumeNumbers] };
-        setTrackedVolumes(newTrackedVolumes);
-        await supabase
-          .from('tracked_volumes')
-          .upsert({ user_id: user.id, manga_id: mangaId, volumes: allApiVolumeNumbers });
+        const newTracked = { ...trackedVolumes, [mangaId]: [...allApiVolumeNumbers] };
+        setTrackedVolumes(newTracked);
+        const { error } = await supabase.rpc('update_manga_volume_configs', {
+          manga_id_input: mangaId,
+          tracked_volumes_input: allApiVolumeNumbers,
+          hidden_volumes_input: hiddenVolumes[mangaId] || []
+        });
+        if (error) throw error;
       }
 
     } catch (err) {
@@ -87,7 +90,7 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [collection, trackedVolumes, setTrackedVolumes, user]);
+  }, [collection, trackedVolumes, hiddenVolumes, setTrackedVolumes, user]);
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const mangaId = e.target.value;
@@ -95,117 +98,69 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
     handleFetchVolumes(mangaId);
   };
   
-  const handleToggleTrackedVolume = async (volume: string) => {
-    if (!selectedMangaId || !user || isUpdating) return;
-    setError(null);
-    setIsUpdating(true);
+  const saveVolumeChanges = async (mangaId: string, newTracked: string[], newHidden: string[]) => {
+      if (!user || isUpdating) return;
+      
+      setError(null);
+      setIsUpdating(true);
 
-    const originalTracked = trackedVolumes[selectedMangaId] || [];
-    const currentTracked = new Set(originalTracked);
+      const originalTracked = trackedVolumes[mangaId] || [];
+      const originalHidden = hiddenVolumes[mangaId] || [];
 
+      // Optimistic UI update
+      setTrackedVolumes(prev => ({ ...prev, [mangaId]: newTracked }));
+      setHiddenVolumes(prev => ({ ...prev, [mangaId]: newHidden }));
+
+      try {
+        const { error } = await supabase.rpc('update_manga_volume_configs', {
+            manga_id_input: mangaId,
+            tracked_volumes_input: newTracked,
+            hidden_volumes_input: newHidden
+        });
+        if (error) throw error;
+      } catch (err) {
+        console.error("Failed to save volume changes:", err);
+        setError("Não foi possível salvar a alteração. Tente novamente.");
+        // Rollback on failure
+        setTrackedVolumes(prev => ({ ...prev, [mangaId]: originalTracked }));
+        setHiddenVolumes(prev => ({ ...prev, [mangaId]: originalHidden }));
+      } finally {
+        setIsUpdating(false);
+      }
+  };
+
+  const handleToggleTrackedVolume = (volume: string) => {
+    if (!selectedMangaId) return;
+
+    const currentTracked = new Set(trackedVolumes[selectedMangaId] || []);
     if (currentTracked.has(volume)) {
       currentTracked.delete(volume);
     } else {
       currentTracked.add(volume);
     }
+    const newTrackedSorted = Array.from(currentTracked).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
     
-    const sorted = Array.from(currentTracked).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
-
-    setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: sorted }));
-
-    try {
-      const { error } = await supabase
-        .from('tracked_volumes')
-        .upsert({ user_id: user.id, manga_id: selectedMangaId, volumes: sorted });
-      if (error) throw error;
-    } catch(err) {
-      console.error("Failed to update tracked volumes:", err);
-      setError("Não foi possível salvar a alteração. Tente novamente.");
-      setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: originalTracked }));
-    } finally {
-        setIsUpdating(false);
-    }
+    saveVolumeChanges(selectedMangaId, newTrackedSorted, hiddenVolumes[selectedMangaId] || []);
   };
 
-  const handleHideVolume = async (volumeToHide: string) => {
-    if (!selectedMangaId || !user || isUpdating) return;
-    setError(null);
-    setIsUpdating(true);
+  const handleHideVolume = (volumeToHide: string) => {
+    if (!selectedMangaId) return;
 
-    const originalHidden = hiddenVolumes[selectedMangaId] || [];
-    const originalTracked = trackedVolumes[selectedMangaId] || [];
+    const currentHidden = hiddenVolumes[selectedMangaId] || [];
+    if (currentHidden.includes(volumeToHide)) return;
 
-    if (originalHidden.includes(volumeToHide)) {
-        setIsUpdating(false);
-        return;
-    };
+    const newHidden = [...currentHidden, volumeToHide].sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
+    const newTracked = (trackedVolumes[selectedMangaId] || []).filter(v => v !== volumeToHide);
 
-    const newHidden = [...originalHidden, volumeToHide];
-    
-    let newTracked = [...originalTracked];
-    const wasTracked = originalTracked.includes(volumeToHide);
-    if (wasTracked) {
-      newTracked = newTracked.filter(v => v !== volumeToHide);
-    }
-
-    setHiddenVolumes(prev => ({ ...prev, [selectedMangaId]: newHidden }));
-    if (wasTracked) {
-      setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: newTracked }));
-    }
-
-    try {
-      const { error: hiddenError } = await supabase
-        .from('hidden_volumes')
-        .upsert({ user_id: user.id, manga_id: selectedMangaId, volumes: newHidden });
-      if (hiddenError) throw hiddenError;
-
-      if (wasTracked) {
-        const { error: trackedError } = await supabase
-          .from('tracked_volumes')
-          .upsert({ user_id: user.id, manga_id: selectedMangaId, volumes: newTracked });
-        if (trackedError) throw trackedError;
-      }
-    } catch(err) {
-      console.error("Failed to hide volume:", err);
-      setError("Não foi possível ocultar o volume. Tente novamente.");
-      setHiddenVolumes(prev => ({ ...prev, [selectedMangaId]: originalHidden }));
-      if(wasTracked) {
-        setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: originalTracked }));
-      }
-    } finally {
-        setIsUpdating(false);
-    }
+    saveVolumeChanges(selectedMangaId, newTracked, newHidden);
   };
 
-  const handleRestoreHiddenVolumes = async () => {
-    if (!selectedMangaId || !user || isUpdating) return;
-    setError(null);
+  const handleRestoreHiddenVolumes = () => {
+    if (!selectedMangaId || (hiddenVolumes[selectedMangaId] || []).length === 0) return;
     
-    const originalHidden = hiddenVolumes[selectedMangaId] || [];
-    if (originalHidden.length === 0) return;
-    
-    setIsUpdating(true);
-
-    setHiddenVolumes(prev => {
-      const newHidden = { ...prev };
-      delete newHidden[selectedMangaId];
-      return newHidden;
-    });
-
-    try {
-      const { error } = await supabase
-        .from('hidden_volumes')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('manga_id', selectedMangaId);
-      if (error) throw error;
-    } catch (err) {
-      console.error("Failed to restore hidden volumes:", err);
-      setError("Não foi possível restaurar os volumes. Tente novamente.");
-      setHiddenVolumes(prev => ({ ...prev, [selectedMangaId]: originalHidden }));
-    } finally {
-        setIsUpdating(false);
-    }
+    // For restoring, we only clear the hidden list. We don't automatically re-track them.
+    // The user can re-track them manually if they wish.
+    saveVolumeChanges(selectedMangaId, trackedVolumes[selectedMangaId] || [], []);
   };
 
 
