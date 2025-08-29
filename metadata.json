@@ -1,0 +1,5 @@
+{
+  "name": "MeusMangás",
+  "description": "Uma aplicação para ajudar usuários a organizar sua coleção de mangás, com busca de séries, seleção de volumes e visualização da coleção.",
+  "requestFramePermissions": []
+}
