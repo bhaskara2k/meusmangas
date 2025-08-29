@@ -96,8 +96,11 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
   
   const handleToggleTrackedVolume = async (volume: string) => {
     if (!selectedMangaId || !user) return;
+    setError(null);
 
-    const currentTracked = new Set(trackedVolumes[selectedMangaId] || []);
+    const originalTracked = trackedVolumes[selectedMangaId] || [];
+    const currentTracked = new Set(originalTracked);
+
     if (currentTracked.has(volume)) {
       currentTracked.delete(volume);
     } else {
@@ -107,47 +110,88 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
     const sorted = Array.from(currentTracked).sort((a,b) => a.localeCompare(b, undefined, {numeric: true}));
 
     setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: sorted }));
-    await supabase
-      .from('tracked_volumes')
-      .upsert({ user_id: user.id, manga_id: selectedMangaId, volumes: sorted });
+
+    try {
+      const { error } = await supabase
+        .from('tracked_volumes')
+        .upsert({ user_id: user.id, manga_id: selectedMangaId, volumes: sorted });
+      if (error) throw error;
+    } catch(err) {
+      console.error("Failed to update tracked volumes:", err);
+      setError("Não foi possível salvar a alteração. Tente novamente.");
+      setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: originalTracked }));
+    }
   };
 
   const handleHideVolume = async (volumeToHide: string) => {
     if (!selectedMangaId || !user) return;
+    setError(null);
 
-    const currentHidden = hiddenVolumes[selectedMangaId] || [];
-    if (!currentHidden.includes(volumeToHide)) {
-      const newHidden = [...currentHidden, volumeToHide];
-      setHiddenVolumes(prev => ({ ...prev, [selectedMangaId]: newHidden }));
-      await supabase
-        .from('hidden_volumes')
-        .upsert({ user_id: user.id, manga_id: selectedMangaId, volumes: newHidden });
+    const originalHidden = hiddenVolumes[selectedMangaId] || [];
+    const originalTracked = trackedVolumes[selectedMangaId] || [];
+
+    if (originalHidden.includes(volumeToHide)) return;
+
+    const newHidden = [...originalHidden, volumeToHide];
+    
+    let newTracked = [...originalTracked];
+    const wasTracked = originalTracked.includes(volumeToHide);
+    if (wasTracked) {
+      newTracked = newTracked.filter(v => v !== volumeToHide);
     }
 
-    const currentTracked = trackedVolumes[selectedMangaId] || [];
-    if (currentTracked.includes(volumeToHide)) {
-      const newTracked = currentTracked.filter(v => v !== volumeToHide);
+    setHiddenVolumes(prev => ({ ...prev, [selectedMangaId]: newHidden }));
+    if (wasTracked) {
       setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: newTracked }));
-       await supabase
-        .from('tracked_volumes')
-        .upsert({ user_id: user.id, manga_id: selectedMangaId, volumes: newTracked });
+    }
+
+    try {
+      const { error: hiddenError } = await supabase
+        .from('hidden_volumes')
+        .upsert({ user_id: user.id, manga_id: selectedMangaId, volumes: newHidden });
+      if (hiddenError) throw hiddenError;
+
+      if (wasTracked) {
+        const { error: trackedError } = await supabase
+          .from('tracked_volumes')
+          .upsert({ user_id: user.id, manga_id: selectedMangaId, volumes: newTracked });
+        if (trackedError) throw trackedError;
+      }
+    } catch(err) {
+      console.error("Failed to hide volume:", err);
+      setError("Não foi possível ocultar o volume. Tente novamente.");
+      setHiddenVolumes(prev => ({ ...prev, [selectedMangaId]: originalHidden }));
+      if(wasTracked) {
+        setTrackedVolumes(prev => ({ ...prev, [selectedMangaId]: originalTracked }));
+      }
     }
   };
 
   const handleRestoreHiddenVolumes = async () => {
     if (!selectedMangaId || !user) return;
+    setError(null);
     
+    const originalHidden = hiddenVolumes[selectedMangaId] || [];
+    if (originalHidden.length === 0) return;
+
     setHiddenVolumes(prev => {
       const newHidden = { ...prev };
       delete newHidden[selectedMangaId];
       return newHidden;
     });
 
-    await supabase
-      .from('hidden_volumes')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('manga_id', selectedMangaId);
+    try {
+      const { error } = await supabase
+        .from('hidden_volumes')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('manga_id', selectedMangaId);
+      if (error) throw error;
+    } catch (err) {
+      console.error("Failed to restore hidden volumes:", err);
+      setError("Não foi possível restaurar os volumes. Tente novamente.");
+      setHiddenVolumes(prev => ({ ...prev, [selectedMangaId]: originalHidden }));
+    }
   };
 
 
@@ -167,14 +211,21 @@ const CompletenessView: React.FC<CompletenessViewProps> = ({
 
   const renderResult = () => {
     if (isLoading) return <LoadingSpinner />;
-    if (error) return <p className="text-center text-red-500 dark:text-red-400 mt-6">{error}</p>;
-    if (!selectedMangaId || (apiVolumes.length === 0 && !isLoading)) return null;
+    if (!selectedMangaId || (apiVolumes.length === 0 && !isLoading)) {
+       if (error) return <p className="text-center text-red-500 dark:text-red-400 mt-6">{error}</p>;
+       return null;
+    }
 
     const isComplete = missingVolumes.length === 0;
     const hasHiddenVolumes = (hiddenVolumes[selectedMangaId]?.length || 0) > 0;
 
     return (
       <div className="mt-8 bg-card/50 border border-border p-6 rounded-lg">
+        {error && (
+            <div className="mb-4 text-center bg-red-100 dark:bg-red-900/50 border border-red-300 dark:border-red-700 p-3 rounded-lg">
+                <p className="text-sm font-medium text-red-800 dark:text-red-300">{error}</p>
+            </div>
+        )}
         <div className="text-center mb-6">
           {isComplete ? (
              <div className="text-center bg-green-100 dark:bg-green-900/50 border border-green-300 dark:border-green-700 p-4 rounded-lg">
