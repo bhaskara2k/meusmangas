@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CollectionItem } from '../types';
 import { XIcon } from './icons/Icons';
-import { useState } from 'react';
+import { getProxiedImageUrl } from '../services/mangaDexService';
 
 interface CollectionCardProps {
   item: CollectionItem;
@@ -36,11 +36,12 @@ const CollectionCard: React.FC<CollectionCardProps> = ({ item, onRemove }) => {
         {/* Imagem */}
         <div className="relative aspect-[2/3] overflow-hidden">
           <img
-            src={item.imageUrl}
+            src={getProxiedImageUrl(item.imageUrl)}
             alt={`${item.title} Vol. ${item.volume}`}
             className={`w-full h-full object-cover transition-all duration-700 ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-110'
               } group-hover:scale-110`}
             loading="lazy"
+            referrerPolicy="no-referrer"
             onLoad={() => setImageLoaded(true)}
           />
 

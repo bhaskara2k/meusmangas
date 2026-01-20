@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChapterProgress, MangaSearchResult } from '../types';
 import { SearchIcon, BookOpenIcon, PlusIcon, TrashIcon, PencilIcon, CheckIcon, XIcon } from './icons/Icons';
-import { searchManga, getLatestChapter } from '../services/mangaDexService';
+import { searchManga, getLatestChapter, getProxiedImageUrl } from '../services/mangaDexService';
 import { useUser } from '../contexts/UserContext';
 import * as firestoreService from '../services/firestoreService';
 import LoadingSpinner from './LoadingSpinner';
@@ -215,7 +215,7 @@ const ChaptersView: React.FC = () => {
                                                 className="w-full flex items-center gap-4 p-3 hover:bg-indigo-50 dark:hover:bg-primary/10 rounded-2xl transition-all text-left group disabled:opacity-50"
                                             >
                                                 <div className="relative w-12 h-16 flex-none">
-                                                    <img src={manga.mainCoverUrl} className="w-full h-full object-cover rounded-xl shadow-md" alt="" />
+                                                    <img src={getProxiedImageUrl(manga.mainCoverUrl)} className="w-full h-full object-cover rounded-xl shadow-md" alt="" referrerPolicy="no-referrer" />
                                                     {isAdding === manga.id && (
                                                         <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center">
                                                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -257,7 +257,7 @@ const ChaptersView: React.FC = () => {
 
                             <div className="relative w-32 flex-none">
                                 <div className="absolute inset-0 bg-primary/20 blur-xl opacity-0 group-hover:opacity-50 transition-opacity" />
-                                <img src={item.imageUrl} className="relative w-full aspect-[2/3] object-cover rounded-[1.5rem] shadow-xl border-2 border-white dark:border-slate-800" alt={item.title} />
+                                <img src={getProxiedImageUrl(item.imageUrl)} className="relative w-full aspect-[2/3] object-cover rounded-[1.5rem] shadow-xl border-2 border-white dark:border-slate-800" alt={item.title} referrerPolicy="no-referrer" />
                                 {isAtrasado && (
                                     <div className="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg animate-bounce border-2 border-white dark:border-slate-900">
                                         -{Math.floor(diff)} CAPS

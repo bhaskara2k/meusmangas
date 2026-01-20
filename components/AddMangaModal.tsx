@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MangaSearchResult, Publisher, MangaVolume, MangaStatus, SeriesStatusCollection } from '../types';
 import { PUBLISHERS } from '../constants';
 import { XIcon } from './icons/Icons';
-import { getMangaVolumesWithCovers } from '../services/mangaDexService';
+import { getMangaVolumesWithCovers, getProxiedImageUrl } from '../services/mangaDexService';
 import LoadingSpinner from './LoadingSpinner';
 
 interface AddMangaModalProps {
@@ -111,9 +111,10 @@ const AddMangaModal: React.FC<AddMangaModalProps> = ({ manga, existingVolumes, s
               <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-500" />
               <div className="relative bg-slate-900/60 backdrop-blur-sm border border-white/10 rounded-2xl p-3 overflow-hidden">
                 <img
-                  src={manga.mainCoverUrl}
+                  src={getProxiedImageUrl(manga.mainCoverUrl)}
                   alt={manga.title}
                   className="rounded-xl w-full aspect-[2/3] object-cover"
+                  referrerPolicy="no-referrer"
                 />
               </div>
             </div>
@@ -278,9 +279,10 @@ const AddMangaModal: React.FC<AddMangaModalProps> = ({ manga, existingVolumes, s
                     >
                       {/* Imagem */}
                       <img
-                        src={vol.coverUrl}
+                        src={getProxiedImageUrl(vol.coverUrl)}
                         alt={`Volume ${vol.volume}`}
                         className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
                       />
 
                       {/* Overlay */}

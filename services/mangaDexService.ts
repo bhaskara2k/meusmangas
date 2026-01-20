@@ -217,3 +217,12 @@ export const getLatestChapter = async (mangaId: string, signal?: AbortSignal): P
     return 0;
   }
 };
+
+// Utilitário para garantir que qualquer link do MangaDex use o proxy
+export const getProxiedImageUrl = (url: string): string => {
+  if (!url) return url;
+  if (url.includes('uploads.mangadex.org')) {
+    return url.replace('https://uploads.mangadex.org', COVER_BASE_URL);
+  }
+  return url;
+};

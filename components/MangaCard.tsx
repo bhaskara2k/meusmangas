@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MangaSearchResult } from '../types';
 import { PlusIcon } from './icons/Icons';
+import { getProxiedImageUrl } from '../services/mangaDexService';
 
 interface MangaCardProps {
   manga: MangaSearchResult;
@@ -23,11 +24,12 @@ const MangaCard: React.FC<MangaCardProps> = ({ manga, onSelect }) => {
       {/* Imagem da capa */}
       <div className="relative overflow-hidden">
         <img
-          src={manga.mainCoverUrl}
+          src={getProxiedImageUrl(manga.mainCoverUrl)}
           alt={manga.title}
           className={`w-full h-auto aspect-[2/3] object-cover transition-all duration-700 ${imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-110'
             } group-hover:scale-110`}
           loading="lazy"
+          referrerPolicy="no-referrer"
           onLoad={() => setImageLoaded(true)}
         />
 
