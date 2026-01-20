@@ -1,4 +1,4 @@
-const CACHE_NAME = 'meusmangas-v1';
+const CACHE_NAME = 'meusmangas-v2'; // Incrementado para forçar limpeza
 const IMAGE_CACHE_NAME = 'meusmangas-images-v1';
 
 const ASSETS_TO_CACHE = [
@@ -10,6 +10,7 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+    self.skipWaiting(); // Força o novo SW a assumir o controle imediatamente
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             return cache.addAll(ASSETS_TO_CACHE);
@@ -19,44 +20,48 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME && cacheName !== IMAGE_CACHE_NAME) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
+        Promise.all([
+            self.clients.claim(), // Toma o controle das abas abertas imediatamente
+            caches.keys().then((cacheNames) => {
+                return Promise.all(
+                    cacheNames.map((cacheName) => {
+                        if (cacheName !== CACHE_NAME && cacheName !== IMAGE_CACHE_NAME) {
+                            return caches.delete(cacheName);
+                        }
+                    })
+                );
+            })
+        ])
     );
 });
 
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // Caching ONLY for images and assets
-    // We avoid intercepting API calls (JSON) to prevent CORS issues on some browsers/hosting
+    // 1. Ignorar completamente chamadas de API do MangaDex no SW
+    // Deixamos o navegador lidar com isso para evitar problemas de CORS/Headers no proxy do SW
+    if (url.hostname.includes('api.mangadex.org')) {
+        return;
+    }
+
+    // 2. Cache APENAS para imagens do MangaDex
     if (event.request.destination === 'image' || url.hostname.includes('uploads.mangadex.org')) {
         event.respondWith(
             caches.open(IMAGE_CACHE_NAME).then((cache) => {
                 return cache.match(event.request).then((response) => {
                     return response || fetch(event.request).then((fetchResponse) => {
-                        // Only cache successful requests
                         if (fetchResponse.ok) {
                             cache.put(event.request, fetchResponse.clone());
                         }
                         return fetchResponse;
-                    }).catch(() => {
-                        // If fetch fails, just return nothing for images
-                        return null;
-                    });
+                    }).catch(() => null);
                 });
             })
         );
         return;
     }
 
-    // Fallback to network-first for everything else
+    // 3. Estratégia para assets locais
     event.respondWith(
         caches.match(event.request).then((response) => {
             return response || fetch(event.request);
