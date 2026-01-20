@@ -1,8 +1,8 @@
 
 import { MangaSearchResult, MangaVolume } from '../types';
 
-const API_BASE_URL = 'https://api.mangadex.org';
-const COVER_BASE_URL = 'https://uploads.mangadex.org';
+const API_BASE_URL = '/mangadex-api';
+const COVER_BASE_URL = '/mangadex-covers';
 
 // Cache simples para evitar requisições repetidas
 const cache = {
