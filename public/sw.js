@@ -34,14 +34,21 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // Cache strategy for images (MangaDex and others)
-    if (event.request.destination === 'image' || url.hostname.includes('mangadex.org') || url.hostname.includes('uploads.mangadex.org')) {
+    // Caching ONLY for images and assets
+    // We avoid intercepting API calls (JSON) to prevent CORS issues on some browsers/hosting
+    if (event.request.destination === 'image' || url.hostname.includes('uploads.mangadex.org')) {
         event.respondWith(
             caches.open(IMAGE_CACHE_NAME).then((cache) => {
                 return cache.match(event.request).then((response) => {
                     return response || fetch(event.request).then((fetchResponse) => {
-                        cache.put(event.request, fetchResponse.clone());
+                        // Only cache successful requests
+                        if (fetchResponse.ok) {
+                            cache.put(event.request, fetchResponse.clone());
+                        }
                         return fetchResponse;
+                    }).catch(() => {
+                        // If fetch fails, just return nothing for images
+                        return null;
                     });
                 });
             })
@@ -49,15 +56,14 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Cache-first for local assets, network-first fallback for others
+    // Fallback to network-first for everything else
     event.respondWith(
         caches.match(event.request).then((response) => {
-            return response || fetch(event.request).catch(() => {
-                // Optional: return a fallback for navigation if offline
-                if (event.request.mode === 'navigate') {
-                    return caches.match('/index.html');
-                }
-            });
+            return response || fetch(event.request);
+        }).catch(() => {
+            if (event.request.mode === 'navigate') {
+                return caches.match('/index.html');
+            }
         })
     );
 });
