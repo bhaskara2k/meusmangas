@@ -1,5 +1,4 @@
-const CACHE_NAME = 'meusmangas-v3'; // Versão 3 para forçar limpeza total
-const IMAGE_CACHE_NAME = 'meusmangas-images-v1';
+const CACHE_NAME = 'meusmangas-v4';
 
 const ASSETS_TO_CACHE = [
     '/',
@@ -22,10 +21,12 @@ self.addEventListener('activate', (event) => {
     event.waitUntil(
         Promise.all([
             self.clients.claim(),
+            // Limpa ABSOLUTAMENTE TUDO que for cache antigo
             caches.keys().then((cacheNames) => {
                 return Promise.all(
                     cacheNames.map((cacheName) => {
-                        if (cacheName !== CACHE_NAME && cacheName !== IMAGE_CACHE_NAME) {
+                        if (cacheName !== CACHE_NAME) {
+                            console.log('🧹 Limpando cache antigo:', cacheName);
                             return caches.delete(cacheName);
                         }
                     })
@@ -38,13 +39,13 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // IGNORAR TUDO que for do MangaDex no Service Worker
-    // Isso garante que o Proxy da Vercel funcione sem erros de CORS
+    // Se for rota do MangaDex (via proxy), IGNORA TOTALMENTE o Service Worker.
+    // Isso garante que o navegador use a Referrer Policy do index.html corretamente.
     if (url.pathname.startsWith('/mangadex-')) {
         return;
     }
 
-    // Estratégia padrão para o restante do app
+    // Estratégia de Cache para assets locais, mas sempre tenta rede para garantir
     event.respondWith(
         caches.match(event.request).then((response) => {
             return response || fetch(event.request);
