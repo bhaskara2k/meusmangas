@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Função helper para verificar autenticação
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Função helper para verificar se é o próprio usuário
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Coleção de usuários
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+    
+    // Coleção de mangás
+    match /collection/{docId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+    }
+    
+    // Status das séries
+    match /series_status/{docId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow write: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+    }
+    
+    // Volumes rastreados
+    match /tracked_volumes/{docId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow write: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+    }
+    
+    // Volumes ocultos
+    match /hidden_volumes/{docId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow write: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+    }
+    
+    // Progresso de capítulos
+    match /chapter_progress/{docId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.user_id == request.auth.uid);
+      allow write: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+    }
+  }
+}
